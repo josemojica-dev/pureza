@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f0f">
+<title>Pureza - Contador</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}
+body{background:#0a0a0f;color:white;min-height:100vh;display:flex;justify-content:center;padding:15px;padding-top:calc(15px + env(safe-area-inset-top));padding-bottom:calc(15px + env(safe-area-inset-bottom))}
+.app{width:100%;max-width:420px}
+.card{background:#18181f;border-radius:24px;padding:22px;margin-bottom:14px;border:1px solid #2a2a35}
+h1{text-align:center;font-size:19px;letter-spacing:1px}
+.sub{text-align:center;color:#6b6b80;font-size:12px;margin-top:4px}
+.racha{text-align:center;padding:18px 0}
+#num{font-size:88px;font-weight:900;line-height:.9;background:linear-gradient(180deg,#fff 0%,#a5a5ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#label{color:#8b8ba7;font-size:12px;letter-spacing:3px;margin-top:8px}
+#last{margin-top:14px;background:#23232f;border-radius:12px;padding:10px;font-size:13px;color:#9a9ab3}
+.btn{width:100%;padding:18px;border-radius:16px;border:none;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px}
+#btnClean{background:#2a2a35;color:#8b8ba7}
+#btnRelapse{background:linear-gradient(135deg,#5b5bff,#8b5cf6);color:white}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.mini{background:#23232f;border-radius:14px;padding:14px;text-align:center}
+.mini b{font-size:22px;display:block}
+.mini span{font-size:11px;color:#6b6b80}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.cal div{aspect-ratio:1;background:#23232f;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b6b80}
+.cal.clean{background:#2e2e4a;color:#a5a5ff;border:1px solid #3d3d5c}
+.cal.fail{background:#3a232f;color:#ff8da1}
+.cal.hoy{outline:2px solid white;outline-offset:-2px}
+.motiv{text-align:center;font-size:13px;color:#a5a5ff;margin-top:12px;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="card">
+<h1>🤍 PUREZA</h1>
+<p class="sub">Tu progreso privado</p>
+<div class="racha">
+<div id="num">0</div>
+<div id="label">DÍAS LIMPIO</div>
+<div id="last">Última vez: Nunca</div>
+</div>
+<div id="motiv" class="motiv">Hoy es un buen día para empezar.</div>
+</div>
+
+<div class="card">
+<button id="btnRelapse" class="btn" onclick="recaida()">TUVE UNA RECAÍDA HOY</button>
+<button id="btnClean" class="btn" onclick="checkDiario()">HOY ME MANTUVE LIMPIO ✓</button>
+<p style="text-align:center;color:#4a4a5c;font-size:11px;margin-top:10px">Toca el botón cada día. Si no registras, no cuenta.</p>
+<div class="grid2">
+<div class="mini"><b id="best">0</b><span>MEJOR RACHA</span></div>
+<div class="mini"><b id="totalClean">0</b><span>DÍAS LIMPIOS TOTAL</span></div>
+</div>
+</div>
+
+<div class="card">
+<div style="display:flex;justify-content:space-between;font-size:13px"><b>Últimos 28 días</b><span style="color:#6b6b80">Morado = limpio</span></div>
+<div class="cal" id="cal"></div>
+</div>
+
+<button onclick="borrar()" style="width:100%;background:none;border:none;color:#3a3a4a;padding:12px;font-size:12px">Borrar datos</button>
+</div>
+
+<script>
+var Native = (window.Capacitor && Capacitor.registerPlugin && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) ? Capacitor.registerPlugin('Pureza') : null;
+var EMPTY = '{"dias":{},"mejorRacha":0,"ultimaRecaida":null}';
+var db = JSON.parse(localStorage.getItem('purezaDB')||EMPTY);
+
+// Fecha local (no UTC) en formato YYYY-MM-DD
+function key(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dayNum(k){ var p=k.split('-'); return Date.UTC(+p[0],+p[1]-1,+p[2])/86400000; }
+
+function save(){
+ var s=JSON.stringify(db);
+ localStorage.setItem('purezaDB',s);
+ if(Native) Native.set({db:s}).catch(function(){});
+}
+
+// Racha = días consecutivos sin recaída, hasta hoy si ya marcaste limpio, o hasta ayer si aún no.
+function calcRacha(){
+ var ks=Object.keys(db.dias).sort();
+ if(!ks.length) return 0;
+ var hoy=key(new Date());
+ if(db.dias[hoy]==='fail') return 0;
+ var lastFail=null;
+ ks.forEach(function(k){ if(db.dias[k]==='fail') lastFail=k; });
+ var start = lastFail ? dayNum(lastFail)+1 : dayNum(ks[0]);
+ var end = db.dias[hoy]==='clean' ? dayNum(hoy) : dayNum(hoy)-1;
+ return Math.max(0, end-start+1);
+}
+
+function recaida(){
+ var hoy=key(new Date());
+ if(!confirm('¿Registrar recaída de hoy? Tu racha se reiniciará a 0.')) return;
+ db.dias[hoy]='fail';
+ db.ultimaRecaida=new Date().toISOString();
+ save(); render();
+}
+
+function checkDiario(){
+ var hoy=key(new Date());
+ if(db.dias[hoy]==='fail'){ alert('Hoy ya registraste recaída. Mañana es un nuevo día.'); return; }
+ db.dias[hoy]='clean';
+ save(); render();
+}
+
+function borrar(){
+ if(!confirm('¿Borrar todo? Esto no se puede deshacer.')) return;
+ localStorage.removeItem('purezaDB');
+ db=JSON.parse(EMPTY);
+ if(Native) Native.set({db:''}).catch(function(){});
+ render();
+}
+
+function render(){
+ var hoy=key(new Date());
+ var totalClean=Object.values(db.dias).filter(function(v){return v==='clean'}).length;
+ var r=calcRacha();
+ if(r>db.mejorRacha){ db.mejorRacha=r; save(); }
+
+ document.getElementById('num').innerText=r;
+ document.getElementById('best').innerText=db.mejorRacha;
+ document.getElementById('totalClean').innerText=totalClean;
+
+ if(db.ultimaRecaida){
+  var d=new Date(db.ultimaRecaida);
+  document.getElementById('last').innerText='Última vez: '+d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})+' a las '+d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+ } else {
+  document.getElementById('last').innerText='Última vez: Nunca registrado 🤍';
+ }
+
+ var frases=["Día 0: el más difícil y el más valiente.","Día 1: ya rompiste el ciclo.","Día 2: tu mente se está limpiando.","Día 3-6: aquí se forma la disciplina.","Día 7: una semana, pocos llegan.","Día 14: dos semanas, tu mejor versión aparece.","Día 30: un mes, eres otra persona."];
+ var msg = r>=30?frases[6]:r>=14?frases[5]:r>=7?frases[4]:r>=3?frases[3]:frases[Math.min(r,2)];
+ document.getElementById('motiv').innerText=msg;
+
+ var cal=document.getElementById('cal'); cal.innerHTML='';
+ for(var i=27;i>=0;i--){
+  var dd=new Date(); dd.setDate(dd.getDate()-i);
+  var k=key(dd), el=document.createElement('div');
+  el.innerText=dd.getDate();
+  if(k===hoy) el.classList.add('hoy');
+  if(db.dias[k]==='clean') el.classList.add('clean');
+  if(db.dias[k]==='fail') el.classList.add('fail');
+  cal.appendChild(el);
+ }
+}
+
+// Sincroniza con el almacenamiento nativo (el widget también escribe ahí)
+function pullNative(){
+ if(!Native){ render(); return; }
+ Native.get().then(function(res){
+  if(res && res.db){ try{ db=JSON.parse(res.db); localStorage.setItem('purezaDB',res.db); }catch(e){} }
+  else if(localStorage.getItem('purezaDB')){ Native.set({db:localStorage.getItem('purezaDB')}).catch(function(){}); }
+  render();
+ }).catch(render);
+}
+document.addEventListener('visibilitychange',function(){ if(!document.hidden) pullNative(); });
+render(); pullNative();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pureza</string>
+    <string name="title_activity_main">Pureza</string>
+    <string name="package_name">com.pureza.app</string>
+    <string name="custom_url_scheme">com.pureza.app</string>
+    <string name="widget_desc">Tu racha de días limpio</string>
+</resources>
