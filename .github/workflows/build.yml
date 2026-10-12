@@ -1,0 +1,23 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: unzip -q pureza-mobile.zip -d work
+      - run: cd work/pureza-mobile && npm install && npx cap sync android
+      - run: cd work/pureza-mobile/android && chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Pureza-APK
+          path: work/pureza-mobile/android/app/build/outputs/apk/debug/app-debug.apk
